@@ -5,10 +5,11 @@ A production-grade, full-stack LLM chatbot system featuring **automatic API key 
 ---
 
 ## 1. Live URLs
-- **Frontend URL**: `https://<your-frontend-deployment>.vercel.app` *(or Netlify / Cloudflare Pages / Render)*
-- **Backend API URL**: `https://<your-backend-deployment>.onrender.com` *(or Railway / Fly.io)*
-- **Health Check**: `https://<your-backend-deployment>.onrender.com/health`
-- **GitHub Repository**: `https://github.com/<your-username>/lyftr-ai-chatbot`
+- **Frontend URL**: `https://lyftr.vercel.app` *(or your custom Vercel deployment link)*
+- **Backend API URL**: `https://lyftr-69oe.onrender.com`
+- **Health Check**: `https://lyftr-69oe.onrender.com/health`
+- **API Documentation (Swagger)**: `https://lyftr-69oe.onrender.com/docs`
+- **GitHub Repository**: `https://github.com/jitender-bot/Lyftr`
 - **Demo Video (2–3 mins)**: `https://<link-to-loom-or-youtube-demo>`
 
 ---
