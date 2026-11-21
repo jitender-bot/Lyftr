@@ -11,7 +11,14 @@ class Settings:
         return keys if keys else ["dummy_key_1", "dummy_key_2"]
     
     # Model
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini/gemini-2.0-flash")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini/gemini-flash-lite-latest")
+    LLM_MODELS_RAW: str = os.getenv("LLM_MODELS", "")
+
+    @property
+    def LLM_MODELS(self) -> List[str]:
+        models = [m.strip() for m in self.LLM_MODELS_RAW.split(",") if m.strip()]
+        return models
+
     DEFAULT_SYSTEM_PROMPT: str = os.getenv(
         "DEFAULT_SYSTEM_PROMPT", "You are a helpful and concise AI assistant."
     )

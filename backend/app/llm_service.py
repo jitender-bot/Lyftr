@@ -18,6 +18,20 @@ except Exception as e:
     logger.warning(f"Failed to enable LiteLLM local cache: {e}")
     litellm.cache = Cache(type="local")
 
+def resolve_model_for_key(api_key: str, key_index: int, default_model: str) -> str:
+    """Resolve appropriate model for a given key in multi-model / multi-provider pools."""
+    if key_index < len(settings.LLM_MODELS):
+        return settings.LLM_MODELS[key_index]
+    # Auto-detect provider from key prefix
+    if api_key.startswith("gsk_"):
+        return "groq/openai/gpt-oss-20b"
+    if api_key.startswith("sk-ant-"):
+        return "claude-3-haiku-20240307"
+    if api_key.startswith("sk-") and not api_key.startswith("gsk_"):
+        return "gpt-4o-mini"
+    # Default to Gemini flash lite (confirmed working)
+    return default_model if default_model else "gemini/gemini-flash-lite-latest"
+
 def get_cache_key(model: str, messages: List[Dict[str, str]]) -> str:
     """Generate deterministic cache key using litellm helper or canonical json."""
     try:
@@ -81,11 +95,13 @@ def generate_chat_response(
     fallback_attempts = 0
     reply_text = None
     successful_key_id = None
+    successful_model = model
     input_tokens = 0
     output_tokens = 0
 
     for idx, api_key in enumerate(keys):
         key_id = f"key_{idx + 1}"
+        current_model = resolve_model_for_key(api_key, idx, model)
         
         # Check if failure is simulated for this key or '*'
         simulated_status = sim_rules.get("*") or sim_rules.get(key_id.lower())
@@ -97,7 +113,7 @@ def generate_chat_response(
         try:
             # Call litellm completion
             response = litellm.completion(
-                model=model,
+                model=current_model,
                 messages=messages,
                 api_key=api_key
             )
@@ -119,19 +135,19 @@ def generate_chat_response(
                 input_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 output_tokens = getattr(usage, "completion_tokens", 0) or 0
             else:
-                # Estimate tokens if usage not returned
                 try:
-                    input_tokens = litellm.token_counter(model=model, messages=messages)
-                    output_tokens = litellm.token_counter(model=model, text=reply_text)
+                    input_tokens = litellm.token_counter(model=current_model, messages=messages)
+                    output_tokens = litellm.token_counter(model=current_model, text=reply_text)
                 except Exception:
                     input_tokens = sum(len(m.get("content", "").split()) for m in messages)
                     output_tokens = len(reply_text.split())
 
             successful_key_id = key_id
+            successful_model = current_model
             break
 
         except Exception as e:
-            logger.warning(f"Key {key_id} failed with error: {e}")
+            logger.warning(f"Key {key_id} ({current_model}) failed with error: {e}")
             fallback_attempts += 1
             continue
 
@@ -151,13 +167,13 @@ def generate_chat_response(
                 "reply": reply_text,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                "model": model
+                "model": successful_model
             }
         )
 
     metadata = {
         "resolution_source": "LIVE_INFERENCE",
-        "model": model,
+        "model": successful_model,
         "latency_ms": latency_ms,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
