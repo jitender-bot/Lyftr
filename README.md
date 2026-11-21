@@ -5,7 +5,7 @@ A production-grade, full-stack LLM chatbot system featuring **automatic API key 
 ---
 
 ## 1. Live URLs
-- **Frontend URL**: `https://lyftr.vercel.app` *(or your custom Vercel deployment link)*
+- **Frontend URL**: `https://lyftr.vercel.app`
 - **Backend API URL**: `https://lyftr-69oe.onrender.com`
 - **Health Check**: `https://lyftr-69oe.onrender.com/health`
 - **API Documentation (Swagger)**: `https://lyftr-69oe.onrender.com/docs`
