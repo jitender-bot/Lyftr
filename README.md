@@ -17,6 +17,7 @@ A production-grade, full-stack LLM chatbot system featuring **automatic API key 
 ## 2. Run locally: with Docker and without
 
 ### Option A: Running with Docker (Mandatory)
+
 The entire stack (backend on port 8000, frontend on port 3000) starts with a single command via the included Makefile:
 
 1. Copy `.env.example` to `.env` and supply your API keys:
@@ -24,10 +25,12 @@ The entire stack (backend on port 8000, frontend on port 3000) starts with a sin
    cp .env.example .env
    ```
 2. Start all services using Docker Compose:
+
    ```bash
    make up
    ```
-   *(Or alternatively: `docker compose up --build -d`)*
+
+   _(Or alternatively: `docker compose up --build -d`)_
 
 3. Access the applications:
    - **Frontend UI**: [http://localhost:3000](http://localhost:3000)
@@ -45,6 +48,7 @@ The entire stack (backend on port 8000, frontend on port 3000) starts with a sin
 ### Option B: Running without Docker (Local Development)
 
 #### Backend (FastAPI + SQLite):
+
 1. Navigate to the backend directory and activate a Python 3.12 environment:
    ```bash
    cd backend
@@ -70,6 +74,7 @@ The entire stack (backend on port 8000, frontend on port 3000) starts with a sin
    ```
 
 #### Frontend (React + Vite):
+
 1. Navigate to the frontend directory:
    ```bash
    cd frontend
@@ -82,7 +87,9 @@ The entire stack (backend on port 8000, frontend on port 3000) starts with a sin
 3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 #### Running Backend Tests:
+
 To run the automated test suite with full coverage of all endpoints, caching, and failover:
+
 ```bash
 python -m pytest backend/tests -v
 ```
@@ -92,12 +99,14 @@ python -m pytest backend/tests -v
 ## 3. Design decisions: key fallback, caching, SQLite session storage
 
 ### Key Pool & Automatic Failover
+
 - **Ordered Key Pool**: Configured via `LLM_API_KEYS` as an ordered comma-separated list (`key_1`, `key_2`, ...).
 - **Graceful Fallback Loop**: When an API key encounters HTTP 429 (rate-limit), quota exhaustion, or 5xx provider errors, the gateway records the failure attempt, increments `fallback_attempts`, and immediately routes the request to the subsequent key in the pool.
 - **Fail-Safe Exhaustion**: If all keys fail, the backend returns a clean HTTP 503 response `{"detail": "all providers unavailable"}`. The user never encounters unhandled 500 exceptions, stack traces, or broken UI screens.
 - **Transactional History Integrity**: In compliance with the specification, requests that fail (422 or 503) are never written to the SQLite session history.
 
 ### Response Caching
+
 - **Deterministic Cache Key**: Formed by `model + full conversation context` (`system prompt + history + new user message`).
 - **Zero-Latency In-Memory Cache**: Uses LiteLLM's local caching mechanism. Before initiating network requests or dispatching to the key pool, the gateway checks the cache:
   - **Cache Hit**: Instantly returns the stored reply text and token counts with `resolution_source = "LLM_CACHE"`, `key_id = null`, and `fallback_attempts = 0`. Cache hit latency is measured in milliseconds and is substantially faster than live calls.
@@ -105,6 +114,7 @@ python -m pytest backend/tests -v
 - Identical first messages across different sessions hit `LLM_CACHE`. Different messages or differing conversation context never produce false cache hits.
 
 ### SQLite Session Storage
+
 - **Isolated SQLite Storage**: Session state is persisted strictly in SQLite without reliance on external services like Redis or PostgreSQL.
 - **Volume Persistence**: In Docker, the database path is mounted to a named Docker volume (`/data/app.db`), ensuring conversation state survives container restarts and upgrades.
 - **Auto-Migrating Schema**: Schema is automatically created on startup with indexing on `(session_id, id)` for efficient multi-turn message retrieval.
@@ -116,6 +126,7 @@ python -m pytest backend/tests -v
 ## 4. Verification: how to see failover, cache hits and per-message token usage
 
 ### 1. Verifying Response Caching
+
 1. In the UI or via curl, send a message:
    ```bash
    curl -X POST http://localhost:8000/chat \
@@ -132,27 +143,32 @@ python -m pytest backend/tests -v
    **Result**: Returns 200 with `"resolution_source": "LLM_CACHE"`, `"key_id": null`, `"fallback_attempts": 0`, and near-instant latency (`< 5 ms`).
 
 ### 2. Verifying Key Failover with `X-Simulate-Failure`
+
 The backend supports the test hook header `X-Simulate-Failure` (active when `ENABLE_FAILURE_SIMULATION=true`):
 
 - **Simulate Key 1 Rate Limit (429)**:
+
   ```bash
   curl -X POST http://localhost:8000/chat \
     -H "Content-Type: application/json" \
     -H "X-Simulate-Failure: key_1=429" \
     -d '{"session_id": "sess-fail-1", "message": "Hello from failover test"}'
   ```
+
   **Response**: HTTP 200, `"key_id": "key_2"`, `"fallback_attempts": 1`.
 
 - **Simulate Key 1 Server Error (500)**:
+
   ```bash
   curl -X POST http://localhost:8000/chat \
     -H "Content-Type: application/json" \
     -H "X-Simulate-Failure: key_1=500" \
     -d '{"session_id": "sess-fail-2", "message": "Testing 500 error failover"}'
   ```
+
   **Response**: HTTP 200, `"key_id": "key_2"`, `"fallback_attempts": 1`.
 
-- **Simulate All Keys Exhausted (*=429)**:
+- **Simulate All Keys Exhausted (\*=429)**:
   ```bash
   curl -X POST http://localhost:8000/chat \
     -H "Content-Type: application/json" \
@@ -162,6 +178,7 @@ The backend supports the test hook header `X-Simulate-Failure` (active when `ENA
   **Response**: HTTP 503 `{"detail": "all providers unavailable"}`. Verified: no messages added to history.
 
 ### 3. Verifying Per-Request Token Usage
+
 - In the UI, inspect the metadata badge beneath each assistant response:
   - `Prompt: <input_tokens>`: Accurately reflects prompt tokens for that specific request (system prompt + history + current message).
   - `Output: <output_tokens>`: Tokens generated by the assistant reply.
@@ -170,6 +187,7 @@ The backend supports the test hook header `X-Simulate-Failure` (active when `ENA
 ---
 
 ## 5. Setup Used: your editor and AI tools
+
 - **Editor / IDE**: Visual Studio Code / Antigravity IDE
 - **Operating Environment**: Windows / Linux Docker Engine
 - **Runtimes & Frameworks**:
@@ -181,6 +199,7 @@ The backend supports the test hook header `X-Simulate-Failure` (active when `ENA
 ---
 
 ## 6. Bonus features (if any): what you added beyond the requirements and why
+
 1. **Interactive Failover Dropdown in UI**:
    - Added a failover selector directly inside the UI header (`Simulate key_1 = 429`, `Simulate key_1 = 500`, `Simulate * = 429`, or custom rules). This allows demonstrating key failover live during video demos without needing Postman or terminal commands.
 2. **System Prompt Collapsible Inspector**:
